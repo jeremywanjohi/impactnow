@@ -8,10 +8,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.example.impactnow" />
+                  <option name="mobileSdkAppId" value="1:1043307091592:android:bb9dccab2c414f3892b13d" />
+                  <option name="projectId" value="phoenix1-cb74e" />
+                  <option name="projectNumber" value="1043307091592" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

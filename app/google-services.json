@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1043307091592",
+    "project_id": "phoenix1-cb74e",
+    "storage_bucket": "phoenix1-cb74e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1043307091592:android:bb9dccab2c414f3892b13d",
+        "android_client_info": {
+          "package_name": "com.example.impactnow"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBSS_lOyJSjlEwlnSXEnsNvoU42d5TKPHA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
