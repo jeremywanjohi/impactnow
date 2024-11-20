@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.example.impactnow.R
+import com.example.impactnow.navigation.Screen
 
 @Composable
 fun BottomNavigationBar(navController: NavController) {
@@ -17,7 +18,6 @@ fun BottomNavigationBar(navController: NavController) {
         Screen.Home to R.drawable.home__1_, // Update to your actual resource names
         Screen.Apply to R.drawable.clipboard,
         Screen.Detail to R.drawable.file,
-        Screen.Profile to R.drawable.profile_user
     )
 
     val navBackStackEntry = navController.currentBackStackEntryAsState()

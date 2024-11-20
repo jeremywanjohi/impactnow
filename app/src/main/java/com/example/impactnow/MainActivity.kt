@@ -23,6 +23,7 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 MainScreen(navController = navController)
             }
+
         }
     }
 }
@@ -40,6 +41,7 @@ fun MainScreen(navController: NavHostController) {
                 )
             )
         },
+
         bottomBar = {
             BottomNavigationBar(navController = navController)
         }

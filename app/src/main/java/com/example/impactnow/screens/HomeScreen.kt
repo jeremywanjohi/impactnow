@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/example/impactnow/ui/HomeScreen.kt
 
 package com.example.impactnow.screens
 
