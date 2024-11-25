@@ -1,3 +1,5 @@
+// File: com/example/impactnow/ui/auth/SignupScreen.kt
+
 package com.example.impactnow.ui.auth
 
 import android.widget.Toast
@@ -10,6 +12,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.example.impactnow.ui.navigation.Screen
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
@@ -17,14 +20,20 @@ import com.google.firebase.firestore.FirebaseFirestore
 
 @Composable
 fun SignupScreen(navController: NavHostController) {
+    // State variables for form inputs
     var firstName by remember { mutableStateOf("") }
     var lastName by remember { mutableStateOf("") }
+    var studentId by remember { mutableStateOf("") } // New State Variable
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
     val firestore = FirebaseFirestore.getInstance()
+
+    // Regular expression pattern for email validation
+    val emailPattern = "[a-zA-Z0-9._-]+@[a-z]+\\.+[a-z]+"
 
     Column(
         modifier = Modifier
@@ -33,6 +42,7 @@ fun SignupScreen(navController: NavHostController) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Title Text
         Text(
             text = "Register Here",
             style = MaterialTheme.typography.titleLarge,
@@ -45,7 +55,8 @@ fun SignupScreen(navController: NavHostController) {
             value = firstName,
             onValueChange = { firstName = it },
             label = { Text("First Name") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -54,7 +65,18 @@ fun SignupScreen(navController: NavHostController) {
             value = lastName,
             onValueChange = { lastName = it },
             label = { Text("Last Name") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // **New:** Student ID Number Input
+        OutlinedTextField(
+            value = studentId,
+            onValueChange = { studentId = it },
+            label = { Text("Student ID Number") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -63,7 +85,8 @@ fun SignupScreen(navController: NavHostController) {
             value = email,
             onValueChange = { email = it.trim() }, // Trim spaces
             label = { Text("Enter Email") },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -73,7 +96,8 @@ fun SignupScreen(navController: NavHostController) {
             onValueChange = { password = it },
             label = { Text("Enter Password") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -83,20 +107,48 @@ fun SignupScreen(navController: NavHostController) {
             onValueChange = { confirmPassword = it },
             label = { Text("Re-enter Password") },
             visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
         )
         Spacer(modifier = Modifier.height(24.dp))
 
         // Register Button
         Button(
             onClick = {
-                val emailPattern = "[a-zA-Z0-9._-]+@[a-z]+\\.+[a-z]+" // Regex for email validation
-
+                // Input Validation
                 when {
+                    firstName.isBlank() -> {
+                        Toast.makeText(
+                            context,
+                            "Please enter your first name.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    lastName.isBlank() -> {
+                        Toast.makeText(
+                            context,
+                            "Please enter your last name.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    studentId.isBlank() -> { // Validate Student ID
+                        Toast.makeText(
+                            context,
+                            "Please enter your Student ID Number.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                     email.isEmpty() || !email.matches(emailPattern.toRegex()) -> {
                         Toast.makeText(
                             context,
                             "Please enter a valid email address.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    password.length < 6 -> { // Ensure password length
+                        Toast.makeText(
+                            context,
+                            "Password must be at least 6 characters long.",
                             Toast.LENGTH_SHORT
                         ).show()
                     }
@@ -108,6 +160,7 @@ fun SignupScreen(navController: NavHostController) {
                         ).show()
                     }
                     else -> {
+                        // Proceed with Firebase Authentication and Firestore
                         auth.createUserWithEmailAndPassword(email, password)
                             .addOnCompleteListener { task ->
                                 if (task.isSuccessful) {
@@ -115,6 +168,7 @@ fun SignupScreen(navController: NavHostController) {
                                     val user = hashMapOf(
                                         "firstName" to firstName,
                                         "lastName" to lastName,
+                                        "studentId" to studentId, // Include Student ID
                                         "email" to email,
                                         "role" to "Student" // Default role is set to "Student"
                                     )
@@ -128,7 +182,11 @@ fun SignupScreen(navController: NavHostController) {
                                                     "Registration successful!",
                                                     Toast.LENGTH_SHORT
                                                 ).show()
-                                                navController.navigate("home")
+                                                // Navigate to Home Screen after successful registration
+                                                navController.navigate(Screen.Home.route) {
+                                                    // Remove SignupScreen from back stack
+                                                    popUpTo("signup") { inclusive = true }
+                                                }
                                             }
                                             .addOnFailureListener { exception ->
                                                 Toast.makeText(
@@ -139,6 +197,7 @@ fun SignupScreen(navController: NavHostController) {
                                             }
                                     }
                                 } else {
+                                    // Handle different types of authentication exceptions
                                     val errorMessage = when (task.exception) {
                                         is FirebaseAuthInvalidCredentialsException -> "Invalid email format."
                                         is FirebaseAuthUserCollisionException -> "This email is already registered."

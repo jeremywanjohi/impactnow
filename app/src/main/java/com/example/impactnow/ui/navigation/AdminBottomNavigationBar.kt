@@ -1,10 +1,11 @@
+// File: com/example/impactnow/ui/navigation/AdminBottomNavigationBar.kt
+
 package com.example.impactnow.ui.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -13,12 +14,11 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
 @Composable
-fun BottomNavigationBar(navController: NavHostController) {
+fun AdminBottomNavigationBar(navController: NavHostController) {
     val items = listOf(
-        BottomNavItem("Home", Icons.Filled.Home, Screen.Home.route),
-        BottomNavItem("Applications", Icons.Filled.List, Screen.Applications.route),
-        BottomNavItem("Saved", Icons.Filled.Bookmark, Screen.Saved.route),
-        BottomNavItem("Profile", Icons.Filled.Person, Screen.Profile.route)
+        BottomNavItem("Post Opportunity", Icons.Filled.Add, Screen.AdminPost.route),
+        BottomNavItem("Posted Opportunities", Icons.Filled.List, Screen.AdminPosted.route),
+        BottomNavItem("Applications", Icons.Filled.Apps, Screen.AdminApplications.route) // New Navigation Item
     )
 
     NavigationBar {
@@ -28,7 +28,7 @@ fun BottomNavigationBar(navController: NavHostController) {
 
         items.forEach { item ->
             NavigationBarItem(
-                selected = currentRoute == item.route, // Highlight the selected item
+                selected = currentRoute == item.route,
                 onClick = {
                     if (currentRoute != item.route) {
                         navController.navigate(item.route) {
@@ -47,9 +47,3 @@ fun BottomNavigationBar(navController: NavHostController) {
         }
     }
 }
-
-data class BottomNavItem(
-    val label: String,
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val route: String
-)
