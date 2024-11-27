@@ -6,6 +6,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -17,6 +19,7 @@ import com.example.impactnow.ui.navigation.BottomNavigationBar
 import com.example.impactnow.ui.navigation.NavGraph
 import com.example.impactnow.ui.navigation.Screen
 import com.example.impactnow.ui.theme.ImpactNowTheme
+import com.google.firebase.auth.FirebaseAuth
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,18 +51,33 @@ fun MainScreen(navController: NavHostController) {
 
         // Check if the current route is part of the adminFlow
         currentRoute?.startsWith("adminPost") == true ||
-                currentRoute?.startsWith("adminPosted") == true -> Pair(true, "admin")
+                currentRoute?.startsWith("adminPosted") == true ||
+                currentRoute?.startsWith("adminApplications") == true -> Pair(true, "admin")
 
         else -> Pair(false, "")
     }
+
+    // State to manage the visibility of the logout confirmation dialog
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(text = "ImpactNow") },
+                actions = {
+                    if (showBottomBar) {
+                        IconButton(onClick = { showLogoutDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Filled.ExitToApp,
+                                contentDescription = "Logout"
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimary
+                    titleContentColor = MaterialTheme.colorScheme.onPrimary,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimary
                 )
             )
         },
@@ -77,5 +95,45 @@ fun MainScreen(navController: NavHostController) {
             navController = navController,
             modifier = Modifier.padding(innerPadding)
         )
+
+        if (showLogoutDialog) {
+            LogoutConfirmationDialog(
+                onConfirm = {
+                    showLogoutDialog = false
+                    // Perform logout
+                    FirebaseAuth.getInstance().signOut()
+                    // Navigate to Login Screen and clear back stack
+                    navController.navigate(Screen.Login.route) {
+                        popUpTo(navController.graph.startDestinationId) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                },
+                onDismiss = { showLogoutDialog = false }
+            )
+        }
     }
+}
+
+@Composable
+fun LogoutConfirmationDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Logout") },
+        text = { Text("Are you sure you want to logout?") },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Yes")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("No")
+            }
+        }
+    )
 }

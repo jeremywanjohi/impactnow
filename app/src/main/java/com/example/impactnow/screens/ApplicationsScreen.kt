@@ -20,12 +20,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.example.impactnow.ui.navigation.Screen
 import com.google.firebase.Timestamp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 data class Application(
     val id: String = "",
@@ -33,6 +36,7 @@ data class Application(
     val studentName: String = "",
     val email: String = "",
     val appliedOpportunityId: String = "",
+    val organizationName: String = "", // New field to store organization name
     val status: String = "Pending",
     val applicationDate: Timestamp? = null,
     val message: String = ""
@@ -44,6 +48,7 @@ fun ApplicationsScreen(navController: NavHostController) {
     val auth = FirebaseAuth.getInstance()
     val currentUser = auth.currentUser
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     var applications by remember { mutableStateOf(listOf<Application>()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -64,10 +69,31 @@ fun ApplicationsScreen(navController: NavHostController) {
                     }
 
                     if (snapshot != null) {
-                        applications = snapshot.documents.mapNotNull { doc ->
+                        // Temporary list to hold applications
+                        val tempApplications = mutableListOf<Application>()
+                        val fetchedApplications = snapshot.documents.mapNotNull { doc ->
                             doc.toObject(Application::class.java)?.copy(id = doc.id)
                         }
-                        isLoading = false
+
+                        // Coroutine scope to fetch organization names sequentially
+                        coroutineScope.launch {
+                            for (app in fetchedApplications) {
+                                try {
+                                    val opportunityDoc = firestore.collection("opportunities")
+                                        .document(app.appliedOpportunityId)
+                                        .get()
+                                        .await()
+
+                                    val organizationName = opportunityDoc.getString("organizationName") ?: "Unknown"
+                                    tempApplications.add(app.copy(organizationName = organizationName))
+                                } catch (e: Exception) {
+                                    Log.e("ApplicationsScreen", "Error fetching organization name", e)
+                                    tempApplications.add(app.copy(organizationName = "Unknown"))
+                                }
+                            }
+                            applications = tempApplications
+                            isLoading = false
+                        }
                     }
                 }
         } else {
@@ -91,7 +117,10 @@ fun ApplicationsScreen(navController: NavHostController) {
             ) {
                 when {
                     isLoading -> {
-                        CircularProgressIndicator(modifier = Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.primary)
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center),
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                     errorMessage != null -> {
                         ErrorView(message = errorMessage!!)
@@ -124,6 +153,7 @@ fun ApplicationCard(application: Application, navController: NavHostController) 
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
+                // Navigate to application details screen (ensure this route exists)
                 navController.navigate("applicationDetails/${application.id}")
             },
         colors = CardDefaults.cardColors(
@@ -146,7 +176,7 @@ fun ApplicationCard(application: Application, navController: NavHostController) 
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Opportunity ID: ${application.appliedOpportunityId}",
+                    text = "Organization: ${application.organizationName}",
                     style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -165,7 +195,7 @@ fun ApplicationCard(application: Application, navController: NavHostController) 
                 Spacer(modifier = Modifier.height(4.dp))
                 if (application.message.isNotBlank()) {
                     Text(
-                        text = application.message,
+                        text = "Message: ${application.message}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -223,7 +253,7 @@ fun EmptyStateView() {
             text = "You have not applied to any opportunities yet.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onBackground,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -254,7 +284,7 @@ fun ErrorView(message: String) {
             text = message,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.error,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
     }
 }

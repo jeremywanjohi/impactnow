@@ -15,6 +15,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 data class StudentApplication(
     val id: String = "",
@@ -22,6 +23,7 @@ data class StudentApplication(
     val studentName: String = "",
     val email: String = "",
     val appliedOpportunityId: String = "",
+    val organizationName: String = "", // New field for organization name
     val status: String = "Pending",
     val applicationDate: Timestamp? = null // Keep as Timestamp for consistent handling
 )
@@ -43,40 +45,53 @@ fun AdminApplicationsScreen(navController: NavHostController) {
                 if (error != null) {
                     isLoading = false
                     errorMessage = "Failed to fetch applications: ${error.message}"
+                    Log.e("AdminApplications", "Firestore error", error)
                     return@addSnapshotListener
                 }
 
                 if (snapshot != null) {
-                    applications = snapshot.documents.mapNotNull { doc ->
-                        try {
-                            doc.toObject(StudentApplication::class.java)?.copy(
-                                id = doc.id,
-                                applicationDate = when (val date = doc.get("applicationDate")) {
-                                    is Timestamp -> date
-                                    is String -> {
-                                        // Parse the String into Timestamp if necessary
-                                        Timestamp(java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss").parse(date))
+                    // Fetch organization names in bulk to optimize performance
+                    val opportunityIds = snapshot.documents.mapNotNull { it.getString("appliedOpportunityId") }.distinct()
+                    if (opportunityIds.isNotEmpty()) {
+                        firestore.collection("opportunities")
+                            .whereIn("id", opportunityIds.take(10)) // Firestore 'in' queries limit to 10 per request
+                            .get()
+                            .addOnSuccessListener { opportunitiesSnapshot ->
+                                val opportunityMap = opportunitiesSnapshot.documents.associateBy(
+                                    { it.id },
+                                    { it.getString("organizationName") ?: "Unknown" }
+                                )
+
+                                applications = snapshot.documents.mapNotNull { doc ->
+                                    try {
+                                        val application = doc.toObject(StudentApplication::class.java)?.copy(
+                                            id = doc.id,
+                                            applicationDate = doc.getTimestamp("applicationDate")
+                                        )
+                                        application?.copy(
+                                            organizationName = opportunityMap[application.appliedOpportunityId] ?: "Unknown"
+                                        )
+                                    } catch (e: Exception) {
+                                        Log.e("AdminApplications", "Error parsing application data", e)
+                                        null
                                     }
-                                    else -> null
                                 }
-                            )
-                        } catch (e: Exception) {
-                            Log.e("AdminApplications", "Error parsing application data", e)
-                            null
-                        }
+                                isLoading = false
+                            }
+                            .addOnFailureListener { e ->
+                                isLoading = false
+                                errorMessage = "Failed to fetch opportunities: ${e.message}"
+                                Log.e("AdminApplications", "Failed to fetch opportunities", e)
+                            }
+                    } else {
+                        applications = emptyList()
+                        isLoading = false
                     }
-                    isLoading = false
                 }
             }
-
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Manage Applications") }
-            )
-        }
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues)) {
             when {
@@ -126,38 +141,91 @@ fun ApplicationItem(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { },
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = "Name: ${application.studentName}", style = MaterialTheme.typography.bodyLarge)
-            Text(text = "Email: ${application.email}", style = MaterialTheme.typography.bodyMedium)
-            Text(text = "Applied Opportunity ID: ${application.appliedOpportunityId}", style = MaterialTheme.typography.bodyMedium)
-            Text(text = "Status: ${application.status}", style = MaterialTheme.typography.bodyMedium)
-
-            val formattedDate = application.applicationDate?.toDate()?.toString() ?: "N/A"
-            Text(text = "Applied On: $formattedDate", style = MaterialTheme.typography.bodySmall)
+            // Header Row: Student Name and Organization Name
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = application.studentName,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = application.organizationName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            if (application.status == "Pending") {
-                Row(
-                    horizontalArrangement = Arrangement.End,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    TextButton(onClick = onReject) {
-                        Text("Reject", color = MaterialTheme.colorScheme.error)
+            // Email
+            Text(
+                text = "Email: ${application.email}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Opportunity ID
+            Text(
+                text = "Opportunity ID: ${application.appliedOpportunityId}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Application Date
+            val formattedDate = application.applicationDate?.toDate()?.toString() ?: "N/A"
+            Text(
+                text = "Applied On: $formattedDate",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Status and Actions
+            Row(
+                horizontalArrangement = Arrangement.End,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                when (application.status) {
+                    "Pending" -> {
+                        TextButton(onClick = onReject) {
+                            Text("Reject", color = MaterialTheme.colorScheme.error)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(onClick = onAccept) {
+                            Text("Accept", color = MaterialTheme.colorScheme.primary)
+                        }
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = onAccept) {
-                        Text("Accept", color = MaterialTheme.colorScheme.primary)
+                    "Accepted" -> {
+                        Text(
+                            text = "Accepted",
+                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    "Rejected" -> {
+                        Text(
+                            text = "Rejected",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                    else -> {
+                        Text(
+                            text = application.status,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
-            } else {
-                Text(
-                    text = "This application has been ${application.status}.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
@@ -165,13 +233,13 @@ fun ApplicationItem(
 
 suspend fun updateApplicationStatus(applicationId: String, newStatus: String) {
     val firestore = FirebaseFirestore.getInstance()
-    firestore.collection("applications").document(applicationId)
-        .update("status", newStatus)
-        .addOnSuccessListener {
-            // Optionally notify success
-        }
-        .addOnFailureListener { exception ->
-            // Optionally handle failure
-            Log.e("UpdateStatus", "Failed to update status", exception)
-        }
+    try {
+        firestore.collection("applications").document(applicationId)
+            .update("status", newStatus)
+            .await() // Using Kotlin Coroutines extension
+        // Optionally notify success, e.g., via Snackbar or Toast
+    } catch (e: Exception) {
+        // Handle failure, e.g., log error or notify admin
+        Log.e("UpdateStatus", "Failed to update status", e)
+    }
 }
