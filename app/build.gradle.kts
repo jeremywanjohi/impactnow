@@ -57,6 +57,8 @@ dependencies {
     // Core KTX
     implementation(libs.androidx.core.ktx)
 
+    implementation(libs.coil.compose)
+
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)
 

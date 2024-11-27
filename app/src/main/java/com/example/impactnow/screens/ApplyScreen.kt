@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.tasks.await
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ApplyScreen(opportunityId: String?, navController: NavHostController) {
     val firestore = FirebaseFirestore.getInstance()
@@ -68,11 +69,7 @@ fun ApplyScreen(opportunityId: String?, navController: NavHostController) {
                 .padding(16.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                Text(
-                    text = "Apply for an Opportunity",
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Full Name Field (Read-only)

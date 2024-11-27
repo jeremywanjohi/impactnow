@@ -2,42 +2,55 @@
 
 package com.example.impactnow.screens
 
+import android.util.Log
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Work
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
-import com.google.firebase.firestore.FirebaseFirestore
-import com.example.impactnow.ui.navigation.Screen
-import com.example.impactnow.R
-import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
+import coil.compose.rememberAsyncImagePainter
+import com.example.impactnow.ui.navigation.Screen
+import com.example.impactnow.R
+import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.window.Dialog
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+
+// Ensure the Opportunity data class is correctly imported or defined
+// File: com/example/impactnow/screens/Opportunity.kt
+
+import com.google.firebase.Timestamp
 
 data class Opportunity(
     val id: String = "",
     val organizationName: String = "",
+    val title: String = "",
     val location: String = "",
-    val requiredSkills: String = "",
-    val organizationLogo: String? = null // URL or resource name
+    val requiredSkills: List<String> = emptyList(),
+    val description: String = "",
+    val imageUrl: String = "",
+    val deadline: Timestamp? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +61,12 @@ fun StudentHomeScreen(navController: NavHostController) {
     var isLoading by remember { mutableStateOf(true) }
     val context = LocalContext.current
 
+    // Snackbar Host State
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    // Coroutine Scope for Snackbar
+    val coroutineScope = rememberCoroutineScope()
+
     // Fetch opportunities from Firestore
     LaunchedEffect(Unit) {
         try {
@@ -56,13 +75,17 @@ fun StudentHomeScreen(navController: NavHostController) {
                 doc.toObject(Opportunity::class.java)?.copy(id = doc.id)
             }
         } catch (e: Exception) {
-            Toast.makeText(context, "Failed to load opportunities: ${e.message}", Toast.LENGTH_SHORT).show()
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Failed to load opportunities: ${e.message}")
+            }
+            Log.e("StudentHomeScreen", "Error fetching opportunities", e)
         } finally {
             isLoading = false
         }
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         content = { paddingValues ->
             Box(
                 modifier = Modifier
@@ -93,16 +116,27 @@ fun StudentHomeScreen(navController: NavHostController) {
                                 OpportunityCard(
                                     opportunity = opportunity,
                                     onApply = {
+                                        // Navigate to ApplyScreen with the opportunity ID
                                         navController.navigate(Screen.Apply.createRoute(opportunity.id))
                                     },
                                     onSave = {
                                         firestore.collection("savedOrganizations")
-                                            .add(opportunity)
+                                            .add(
+                                                mapOf(
+                                                    "organizationName" to opportunity.organizationName,
+                                                    "location" to opportunity.location,
+                                                    "requiredSkills" to opportunity.requiredSkills,
+                                                    "description" to opportunity.description,
+                                                    "imageUrl" to opportunity.imageUrl,
+                                                    "deadline" to opportunity.deadline
+                                                )
+                                            )
                                             .addOnSuccessListener {
                                                 Toast.makeText(context, "Saved successfully!", Toast.LENGTH_SHORT).show()
                                             }
                                             .addOnFailureListener { exception ->
                                                 Toast.makeText(context, "Failed to save: ${exception.message}", Toast.LENGTH_SHORT).show()
+                                                Log.e("StudentHomeScreen", "Error saving opportunity", exception)
                                             }
                                     }
                                 )
@@ -122,6 +156,9 @@ fun OpportunityCard(
     onApply: () -> Unit,
     onSave: () -> Unit
 ) {
+    // State to control dialog visibility
+    var showDialog by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier
             .fillMaxWidth(),
@@ -174,7 +211,7 @@ fun OpportunityCard(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = opportunity.requiredSkills,
+                    text = opportunity.requiredSkills.joinToString(", "),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,
@@ -210,7 +247,7 @@ fun OpportunityCard(
                     Text("Save")
                 }
                 Button(
-                    onClick = onApply,
+                    onClick = { showDialog = true },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
                     ),
@@ -225,6 +262,52 @@ fun OpportunityCard(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Apply")
                 }
+            }
+
+            // Popup Dialog for Opportunity Details
+            if (showDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDialog = false },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showDialog = false
+                            onApply()
+                        }) {
+                            Text("Apply")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDialog = false }) {
+                            Text("Cancel")
+                        }
+                    },
+                    title = {
+                        Text(text = opportunity.title)
+                    },
+                    text = {
+                        Column {
+                            // Opportunity Image
+                            if (opportunity.imageUrl.isNotEmpty()) {
+                                Image(
+                                    painter = rememberAsyncImagePainter(opportunity.imageUrl),
+                                    contentDescription = "Opportunity Image",
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(200.dp)
+                                        .padding(bottom = 8.dp),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+
+                            }
+                            // Opportunity Description
+                            Text(
+                                text = opportunity.description,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                )
             }
         }
     }
